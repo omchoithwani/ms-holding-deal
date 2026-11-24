@@ -13,6 +13,8 @@ export const config = {
   includeOverdue: (process.env.INCLUDE_OVERDUE || 'true').toLowerCase() !== 'false',
   dateFrom: process.env.DATE_FROM || '',
   dateTo: process.env.DATE_TO || '',
+  // Weekly tasks Google Sheet (updated by apps-script/Code.gs). Set SHEET_URL='' to hide the link.
+  sheetUrl: process.env.SHEET_URL ?? 'https://docs.google.com/spreadsheets/d/11TKUgbnEPjfCMBWsi3JP_1wm6eNa25X4xGM5mV7v-7M/edit',
   dryRun: (process.env.DRY_RUN || '').toLowerCase() === 'true',
   timeZone: 'America/New_York',
 };

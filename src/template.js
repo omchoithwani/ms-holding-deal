@@ -57,9 +57,10 @@ const priorityLabel = (p) => (!p ? null : p in PRIORITY ? PRIORITY[p] : p);
 
 /* ------------------------------ plain text ------------------------------ */
 
-export function buildText(upcoming, overdue, { label, ownerNames, asOf }) {
+export function buildText(upcoming, overdue, { label, ownerNames, asOf, sheetUrl }) {
   const L = [`Weekly Task Digest — Week of ${label}`];
   if (ownerNames.length) L.push(`Tasks for: ${ownerNames.join(', ')}`);
+  if (sheetUrl) L.push(`Google Sheet: ${sheetUrl}`);
   L.push('', `UPCOMING (${upcoming.length})`, '='.repeat(40));
   if (upcoming.length === 0) L.push('No open tasks due this period.');
 
@@ -155,7 +156,7 @@ function overdueTable(overdue, asOf) {
       </table>`;
 }
 
-export function buildHtml(upcoming, overdue, { label, ownerNames, asOf }) {
+export function buildHtml(upcoming, overdue, { label, ownerNames, asOf, sheetUrl }) {
   const h2 = 'font-size:16px;color:#111;margin:28px 0 12px;padding-bottom:6px;border-bottom:1px solid #e5e5e5;';
   return `<!DOCTYPE html>
 <html>
@@ -165,6 +166,7 @@ export function buildHtml(upcoming, overdue, { label, ownerNames, asOf }) {
     <div style="color:#666;font-size:13px;">
       ${ownerNames.length ? `Tasks for ${esc(ownerNames.join(', '))} &middot; ` : ''}${upcoming.length} upcoming${overdue.length ? ` &middot; <span style="color:#b42318;">${overdue.length} overdue</span>` : ''}
     </div>
+    ${sheetUrl ? `<div style="margin-top:12px;"><a href="${esc(sheetUrl)}" style="display:inline-block;padding:7px 12px;border:1px solid #c9d4e0;border-radius:6px;color:#0b5cad;text-decoration:none;font-size:13px;">Open the Google Sheet &rarr;</a></div>` : ''}
 
     <h2 style="${h2}">Upcoming tasks</h2>
     ${upcoming.length ? upcoming.map(taskCard).join('') : '<p style="color:#666;">No open tasks due this period.</p>'}

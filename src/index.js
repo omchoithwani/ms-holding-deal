@@ -114,7 +114,7 @@ async function main() {
   }
 
   const ownerNames = (await Promise.all(config.ownerIds.map(getOwnerName))).filter(Boolean);
-  const ctx = { label: win.label, ownerNames, asOf: new Date() };
+  const ctx = { label: win.label, ownerNames, asOf: new Date(), sheetUrl: config.sheetUrl };
   const subject = `Weekly Task Digest – Week of ${win.label}`;
   const html = buildHtml(upcoming, overdue, ctx);
   const text = buildText(upcoming, overdue, ctx);
