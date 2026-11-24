@@ -1,0 +1,87 @@
+name: Weekly Task Digest Email
+
+on:
+  schedule:
+    # Friday 4:30pm US Eastern all year: one cron per DST season, the wrong one exits early.
+    - cron: '30 20 * * 5'  # 4:30pm EDT (summer)
+    - cron: '30 21 * * 5'  # 4:30pm EST (winter)
+  workflow_dispatch:
+    inputs:
+      date_from:
+        description: 'Start date (YYYY-MM-DD). Leave blank for next week.'
+        required: false
+        default: ''
+      date_to:
+        description: 'End date (YYYY-MM-DD). Leave blank for next week.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (build the email but do not send it)'
+        type: boolean
+        default: false
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run only for the cron matching current Eastern time offset
+        id: gate
+        run: |
+          zone=$(TZ=America/New_York date +%Z)
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if { [ "${{ github.event.schedule }}" = "30 20 * * 5" ] && [ "$zone" != "EDT" ]; } || \
+               { [ "${{ github.event.schedule }}" = "30 21 * * 5" ] && [ "$zone" != "EST" ]; }; then
+              echo "Skipping: ${{ github.event.schedule }} is not 4:30pm Eastern while on $zone"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.gate.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Check secrets are set
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          for v in HUBSPOT_ACCESS_TOKEN RESEND_API_KEY FROM_EMAIL RECIPIENT_EMAILS; do
+            if [ -n "${!v}" ]; then echo "$v: set"; else echo "$v: MISSING"; fi
+          done
+        env:
+          HUBSPOT_ACCESS_TOKEN: ${{ secrets.HUBSPOT_ACCESS_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          RECIPIENT_EMAILS: ${{ secrets.RECIPIENT_EMAILS }}
+
+      - name: Send weekly task digest
+        if: steps.gate.outputs.skip != 'true'
+        run: node src/index.js
+        env:
+          HUBSPOT_ACCESS_TOKEN: ${{ secrets.HUBSPOT_ACCESS_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          RECIPIENT_EMAILS: ${{ secrets.RECIPIENT_EMAILS }}
+          # Optional overrides (repository variables); defaults live in src/config.js
+          HUBSPOT_OWNER_IDS: ${{ vars.HUBSPOT_OWNER_IDS }}
+          NOTES_LIMIT: ${{ vars.NOTES_LIMIT }}
+          INCLUDE_OVERDUE: ${{ vars.INCLUDE_OVERDUE }}
+          DATE_FROM: ${{ github.event.inputs.date_from }}
+          DATE_TO: ${{ github.event.inputs.date_to }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+      - name: Upload preview (dry run)
+        if: steps.gate.outputs.skip != 'true' && github.event.inputs.dry_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-preview
+          path: digest-preview.html

@@ -1,0 +1,16 @@
+{
+  "name": "ms-holding-deal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Weekly HubSpot task digest email for MS Holdings (Edward's contact/company tasks)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "preview": "DRY_RUN=true node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "resend": "^3.5.0"
+  }
+}
