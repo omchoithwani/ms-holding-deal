@@ -45,10 +45,49 @@ function setHubSpotToken() {
     'Paste the MS Holdings private app token (needs contacts, companies and owners read scopes).',
     ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() !== ui.Button.OK) return;
-  var token = res.getResponseText().trim();
+  // Tolerate "Bearer ", quotes and stray whitespace/line breaks from copy-paste.
+  var token = res.getResponseText().replace(/^\s*(bearer\s+)?/i, '').replace(/["'\s]/g, '');
   if (!token) return;
+
+  if (!/^pat-/.test(token)) {
+    ui.alert('That doesn\'t look like a private app token',
+      'Private app tokens start with "pat-" (for MS Holdings: "pat-na2-…").\n\n' +
+      'In HubSpot: Settings → Integrations → Private Apps (or Development → Legacy apps) → open the app → ' +
+      'Auth tab → "Access token" → Show → Copy.\n\n' +
+      'Not the Client secret, App ID, or a personal access key. Nothing was saved.',
+      ui.ButtonSet.OK);
+    return;
+  }
+
+  // Check it works before saving.
+  var check = UrlFetchApp.fetch('https://api.hubapi.com/crm/v3/objects/tasks/search', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: JSON.stringify({ limit: 1, properties: ['hs_task_subject'] }),
+    muteHttpExceptions: true,
+  });
+  var code = check.getResponseCode();
+  if (code === 401) {
+    ui.alert('HubSpot rejected this token (401)',
+      'The token is invalid or was rotated. Copy a fresh "Access token" from the private app and try again. Nothing was saved.',
+      ui.ButtonSet.OK);
+    return;
+  }
+  if (code === 403) {
+    ui.alert('Token is missing permissions (403)',
+      'Add these scopes to the private app, then try again:\n' +
+      'crm.objects.contacts.read, crm.objects.companies.read, crm.objects.owners.read\n\n' + check.getContentText(),
+      ui.ButtonSet.OK);
+    return;
+  }
+  if (code < 200 || code >= 300) {
+    ui.alert('HubSpot returned ' + code, check.getContentText(), ui.ButtonSet.OK);
+    return;
+  }
+
   PropertiesService.getScriptProperties().setProperty('HUBSPOT_ACCESS_TOKEN', token);
-  ui.alert('Token saved. Use "Update now" to test it.');
+  ui.alert('Token works and is saved. Now run "Update now".');
 }
 
 function installWeeklyTrigger() {
@@ -132,6 +171,10 @@ function hubspot_(method, path, body) {
     var res = UrlFetchApp.fetch('https://api.hubapi.com' + path, opts);
     var code = res.getResponseCode();
     if (code >= 200 && code < 300) return code === 204 ? null : JSON.parse(res.getContentText());
+    if (code === 401) {
+      throw new Error('HubSpot rejected the saved token (401). Use "HubSpot Tasks → Set HubSpot token" to paste ' +
+        'the private app\'s Access token (starts with "pat-na2-"). Details: ' + res.getContentText());
+    }
     var transient = [429, 500, 502, 503, 504].indexOf(code) !== -1;
     if (!transient || attempt >= 5) {
       throw new Error('HubSpot ' + method + ' ' + path + ' → ' + code + ': ' + res.getContentText());
